@@ -21,7 +21,9 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
 import android.view.View;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.ListView;
 import android.widget.Toast;
 
 import java.io.File;
@@ -32,8 +34,9 @@ import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.List;
 
-public class WiFiDirectActivity extends Activity implements DialogInterface.OnClickListener, WifiP2pManager.ConnectionInfoListener {
+public class WiFiDirectActivity extends Activity implements WifiP2pManager.ConnectionInfoListener {
 
     private final String LOG_TAG = WiFiDirectActivity.class.getSimpleName();
     private static boolean server_running = false;
@@ -44,6 +47,7 @@ public class WiFiDirectActivity extends Activity implements DialogInterface.OnCl
     IntentFilter filter;
     ArrayAdapter<String> adapter;
     ArrayList<WifiP2pDevice> peers;
+    ListView list;
 
     ProgressDialog progress;
 
@@ -58,6 +62,9 @@ public class WiFiDirectActivity extends Activity implements DialogInterface.OnCl
         manager = (WifiP2pManager) getSystemService(Context.WIFI_P2P_SERVICE);
         channel = manager.initialize(this, getMainLooper(), null);
         receiver = new WiFiDirectBroadcastReceiver(manager, channel, this);
+
+        list = (ListView) findViewById(R.id.listView);
+
 
         filter = new IntentFilter();
         filter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION);
@@ -120,68 +127,79 @@ public class WiFiDirectActivity extends Activity implements DialogInterface.OnCl
     }
 
 
-    public void showDeviceListDialog(ArrayAdapter<String> adapter, ArrayList<WifiP2pDevice> peers) {
+    public void populateList(ArrayAdapter<String> adapter, final ArrayList<WifiP2pDevice> peers) {
         this.adapter = adapter;
         this.peers = peers;
-        PeersDialog deviceListDialog = new PeersDialog();
-        deviceListDialog.show(getFragmentManager(), "devices");
+        list.setAdapter(adapter);
+        list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                Log.d(LOG_TAG, "device clicked");
+                onDeviceSelected(position);
+                progress.setMessage("Connecting to " + peers.get(position).deviceName);
+                progress.show();
+            }
+        });
+//        PeersDialog deviceListDialog = new PeersDialog();
+//        deviceListDialog.show(getFragmentManager(), "devices");
     }
 
 
-    public class PeersDialog extends DialogFragment {
-
-        @Override
-        public Dialog onCreateDialog(Bundle savedInstanceState) {
-
-            AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
-
-            builder.setTitle("Choose devices")
-
-                    .setSingleChoiceItems(adapter, 0, WiFiDirectActivity.this)
-//                    .setMultiChoiceItems(adapter, null, new DialogInterface.OnMultiChoiceClickListener() {
-//                        @Override
-//                        public void onClick(DialogInterface dialogInterface, int i, boolean isChecked) {
-//                            if (isChecked) {
-//                                selectedDevices.add(i);
-//                            } else if (selectedDevices.contains(i)) {
-//                                selectedDevices.remove(i);
-//                            }
-//                        }
-//                    })
-//                    .setPositiveButton("Connect", new DialogInterface.OnClickListener() {
-//                        @Override
-//                        public void onClick(DialogInterface dialog, int i) {
+//    public static class PeersDialog extends DialogFragment {
 //
-//                        }
-//                    })
-//                    .setNeutralButton("Check all", new DialogInterface.OnClickListener() {
+//        @Override
+//        public Dialog onCreateDialog(Bundle savedInstanceState) {
+//
+//            AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
+//
+//            builder.setTitle("Choose devices")
+//
+//                    .setSingleChoiceItems(adapter, 0, WiFiDirectActivity.this)
+////                    .setMultiChoiceItems(adapter, null, new DialogInterface.OnMultiChoiceClickListener() {
+////                        @Override
+////                        public void onClick(DialogInterface dialogInterface, int i, boolean isChecked) {
+////                            if (isChecked) {
+////                                selectedDevices.add(i);
+////                            } else if (selectedDevices.contains(i)) {
+////                                selectedDevices.remove(i);
+////                            }
+////                        }
+////                    })
+////                    .setPositiveButton("Connect", new DialogInterface.OnClickListener() {
+////                        @Override
+////                        public void onClick(DialogInterface dialog, int i) {
+////
+////                        }
+////                    })
+////                    .setNeutralButton("Check all", new DialogInterface.OnClickListener() {
+////                        @Override
+////                        public void onClick(DialogInterface dialog, int i) {
+////                            selectedDevices = ;
+////                            dialog.dismiss();
+////                        }
+////                    })
+//                    .setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
 //                        @Override
 //                        public void onClick(DialogInterface dialog, int i) {
-//                            selectedDevices = ;
 //                            dialog.dismiss();
 //                        }
-//                    })
-                    .setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialog, int i) {
-                            dialog.dismiss();
-                        }
-                    });
+//                    });
+//
+//
+//            return builder.create();
+//        }
+//    }
 
 
-            return builder.create();
-        }
-    }
 
+//    @Override
+//    public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+//        Log.d(LOG_TAG, "device clicked");
+//        onDeviceSelected(position);
+//        progress.setMessage("Connecting to " + peers.get(position).deviceName);
+//        progress.show();
+//    }
 
-    @Override
-    public void onClick(DialogInterface dialog, int i) {
-        dialog.dismiss();
-        Log.d(LOG_TAG, "device clicked");
-        onDeviceSelected(i);
-        progress.setMessage("Connecting to " + peers.get(i).deviceName);
-        progress.show();
-    }
 
     public void onDeviceSelected(int i) {
         WifiP2pDevice device = peers.get(i);
@@ -208,7 +226,7 @@ public class WiFiDirectActivity extends Activity implements DialogInterface.OnCl
     @Override
     public void onConnectionInfoAvailable(WifiP2pInfo info) {
         progress.dismiss();
-        Log.d(LOG_TAG, "Connection Info Available - Group owner IP: " + info.groupOwnerAddress.getHostAddress());
+        Log.d(LOG_TAG, "Connection Info Available - Group owner IP: " + info.groupOwnerAddress.getHostAddress() + "=====================>" + info.isGroupOwner);
         if (!server_running) {
             new FileServerTask().execute();
             server_running = true;
@@ -216,12 +234,15 @@ public class WiFiDirectActivity extends Activity implements DialogInterface.OnCl
     }
 
 
-    private class FileServerTask extends AsyncTask<Void, Void, String> {
+
+
+
+    private class FileServerTask extends AsyncTask<Void, Void, File> {
 
         private final String LOG_TAG = "WiFiDirect/FileServer:";
 
         @Override
-        protected String doInBackground(Void... params) {
+        protected File doInBackground(Void... params) {
             try {
                 ServerSocket serverSocket = new ServerSocket(FileTransferService.PORT);
                 Log.d(LOG_TAG, "Server: socket opened");
@@ -248,7 +269,8 @@ public class WiFiDirectActivity extends Activity implements DialogInterface.OnCl
 
                 serverSocket.close();
                 server_running = false;
-                return file.getAbsolutePath();
+                return file;
+//                return file.getAbsolutePath();
 
             } catch (IOException e) {
                 e.printStackTrace();
@@ -274,11 +296,11 @@ public class WiFiDirectActivity extends Activity implements DialogInterface.OnCl
         }
 
         @Override
-        protected void onPostExecute(String s) {
-            Log.d(LOG_TAG, "File Uri: " + Uri.parse(s));
-            if (s != null) {
+        protected void onPostExecute(File f) {
+            Log.d(LOG_TAG, "File Uri: " + Uri.fromFile(f));
+            if (f != null) {
                 Intent intent = new Intent(Intent.ACTION_VIEW);
-                intent.setDataAndType(Uri.parse(s), "image/*");
+                intent.setDataAndType(Uri.fromFile(f), "image/*");
                 startActivity(intent);
             }
         }

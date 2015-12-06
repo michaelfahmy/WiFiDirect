@@ -39,45 +39,49 @@ public class WiFiDirectBroadcastReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         String action = intent.getAction();
-        if (action.equals(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)) {
-            int state = intent.getIntExtra(WifiP2pManager.EXTRA_WIFI_STATE, -1);
-            if(state == WifiP2pManager.WIFI_P2P_STATE_ENABLED) {
-                Log.d(LOG_TAG, "WiFi Direct is enabled");
-            } else {
-                Log.d(LOG_TAG, "WiFi Direct is disabled");
-            }
+        switch (action) {
+            case WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION:
+                int state = intent.getIntExtra(WifiP2pManager.EXTRA_WIFI_STATE, -1);
+                if (state == WifiP2pManager.WIFI_P2P_STATE_ENABLED) {
+                    Log.d(LOG_TAG, "WiFi Direct is enabled");
+                } else {
+                    Log.d(LOG_TAG, "WiFi Direct is disabled");
+                }
+                break;
 
-        } else if (action.equals(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION)) {
-            Log.d(LOG_TAG, "P2P peers changed!");
-            if (manager != null) {
-                manager.requestPeers(channel, new WifiP2pManager.PeerListListener() {
-                    @Override
-                    public void onPeersAvailable(WifiP2pDeviceList devices) {
-                        peers.clear();
-                        peers.addAll(devices.getDeviceList());
-                        Log.d(LOG_TAG, "Devices found = " + peers.size());
+            case WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION:
+                Log.d(LOG_TAG, "P2P peers changed!");
+                if (manager != null) {
+                    manager.requestPeers(channel, new WifiP2pManager.PeerListListener() {
+                        @Override
+                        public void onPeersAvailable(WifiP2pDeviceList devices) {
+                            peers.clear();
+                            peers.addAll(devices.getDeviceList());
+                            Log.d(LOG_TAG, "Devices found = " + peers.size());
 
-                        for (WifiP2pDevice device : peers) {
-                            deviceNames.add(device.deviceName);
+                            for (WifiP2pDevice device : peers) {
+                                deviceNames.add(device.deviceName);
+                            }
+
+                            if (deviceNames.size() > 0 && !deviceNames.equals(prevDeviceNames)) {
+                                adapter = new ArrayAdapter<String>(activity, R.layout.list_items, R.id.item_textview, new ArrayList<String>(deviceNames));
+                                activity.populateList(adapter, new ArrayList<WifiP2pDevice>(peers));
+                                prevDeviceNames = deviceNames;
+                            } else {
+                                Log.d(LOG_TAG, "Device List not changed!");
+                            }
                         }
+                    });
+                }
+                break;
 
-                        if (deviceNames.size() > 0 && !deviceNames.equals(prevDeviceNames)) {
-                            adapter = new ArrayAdapter<String>(activity, R.layout.list_items, R.id.item_textview, new ArrayList<String>(deviceNames));
-                            activity.showDeviceListDialog(adapter, new ArrayList<WifiP2pDevice>(peers));
-                            prevDeviceNames = deviceNames;
-                        } else {
-                            Log.d(LOG_TAG, "Device List not changed!");
-                        }
-                    }
-                });
-            }
-
-        } else if (action.equals(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)) {
-            NetworkInfo networkInfo = intent.getParcelableExtra(WifiP2pManager.EXTRA_NETWORK_INFO);
-            Log.d(LOG_TAG, "Connection status " + networkInfo.isConnected());
-            if (networkInfo.isConnected()) {
-                manager.requestConnectionInfo(channel, activity);
-            }
+            case WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION:
+                NetworkInfo networkInfo = intent.getParcelableExtra(WifiP2pManager.EXTRA_NETWORK_INFO);
+                Log.d(LOG_TAG, "Connection status " + networkInfo.isConnected());
+                if (networkInfo.isConnected()) {
+                    manager.requestConnectionInfo(channel, activity);
+                }
+                break;
         }
 
     }
