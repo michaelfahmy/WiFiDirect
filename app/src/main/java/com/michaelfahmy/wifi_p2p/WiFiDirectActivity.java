@@ -48,16 +48,12 @@ public class WiFiDirectActivity extends Activity implements WifiP2pManager.Conne
     ArrayAdapter<String> adapter;
     ArrayList<WifiP2pDevice> peers;
     ListView list;
-
     ProgressDialog progress;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_wifi_direct);
-
-        Log.d(LOG_TAG, "Inside " + LOG_TAG + "/onCreate");
-
 
         manager = (WifiP2pManager) getSystemService(Context.WIFI_P2P_SERVICE);
         channel = manager.initialize(this, getMainLooper(), null);
@@ -81,7 +77,6 @@ public class WiFiDirectActivity extends Activity implements WifiP2pManager.Conne
             @Override
             public void onSuccess() {
                 Toast.makeText(WiFiDirectActivity.this, "Peers discovery initiated", Toast.LENGTH_SHORT).show();
-                Log.d(LOG_TAG, "Peers discovered successfully!");
             }
 
             @Override
@@ -107,10 +102,6 @@ public class WiFiDirectActivity extends Activity implements WifiP2pManager.Conne
             serviceIntent.setAction(FileTransferService.ACTION_SEND_FILE);
             serviceIntent.setData(uri);
             startService(serviceIntent);
-            if (!server_running) {
-                new FileServerTask().execute();
-                server_running = true;
-            }
         }
     }
 
@@ -205,18 +196,18 @@ public class WiFiDirectActivity extends Activity implements WifiP2pManager.Conne
         WifiP2pDevice device = peers.get(i);
         if (device == null) return;
 
-        WifiP2pConfig config = new WifiP2pConfig();
-        config.deviceAddress = device.deviceAddress;
-        config.wps.setup = WpsInfo.PBC;
-        Log.d(LOG_TAG, "Connecting with " + device.toString());
-        manager.connect(channel, config, new WifiP2pManager.ActionListener() {
+//        WifiP2pConfig config = new WifiP2pConfig();
+//        config.deviceAddress = device.deviceAddress;
+//        config.wps.setup = WpsInfo.PBC;
+//        Log.d(LOG_TAG, "Connecting with " + device.toString());
+        manager.createGroup(channel, new WifiP2pManager.ActionListener() {
             @Override
             public void onSuccess() {
-                // broadcast will trigger an action
+                Log.e(LOG_TAG, "Device connection onSuccess");
             }
 
             @Override
-            public void onFailure(int i) {
+            public void onFailure(int reason) {
                 Log.e(LOG_TAG, "Device connection failed");
             }
         });
@@ -226,11 +217,21 @@ public class WiFiDirectActivity extends Activity implements WifiP2pManager.Conne
     @Override
     public void onConnectionInfoAvailable(WifiP2pInfo info) {
         progress.dismiss();
-        Log.d(LOG_TAG, "Connection Info Available - Group owner IP: " + info.groupOwnerAddress.getHostAddress() + "=====================>" + info.isGroupOwner);
-        if (!server_running) {
-            new FileServerTask().execute();
-            server_running = true;
+        Log.d(LOG_TAG, "Group owner IP: " + info.groupOwnerAddress.getHostAddress() + " =====================> " + info.isGroupOwner);
+
+        if (info.groupFormed && info.isGroupOwner) {
+            // Do whatever tasks are specific to the group owner.
+            // One common case is creating a server thread and accepting incoming connections.
+            if (!server_running) {
+                new FileServerTask().execute();
+                server_running = true;
+            }
+        } else if (info.groupFormed) {
+            // The other device acts as the client. In this case,
+            // you'll want to create a client thread that connects to the group owner.
         }
+
+
     }
 
 
@@ -254,9 +255,8 @@ public class WiFiDirectActivity extends Activity implements WifiP2pManager.Conne
                 File dirs = new File(file.getParent());
                 if (!dirs.exists())
                     dirs.mkdirs();
-                if(!file.createNewFile()) {
-                    Log.d(LOG_TAG, "file not created");
-                }
+                file.createNewFile();
+
 
                 InputStream inputStream = client.getInputStream();
                 FileOutputStream outputStream = new FileOutputStream(file);
@@ -270,7 +270,6 @@ public class WiFiDirectActivity extends Activity implements WifiP2pManager.Conne
                 serverSocket.close();
                 server_running = false;
                 return file;
-//                return file.getAbsolutePath();
 
             } catch (IOException e) {
                 e.printStackTrace();
